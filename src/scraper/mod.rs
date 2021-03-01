@@ -1,6 +1,6 @@
 use headless_chrome::{Browser, LaunchOptions, Tab};
+use std::path::PathBuf;
 use std::{env, fs::write, time::Duration};
-use std::{fs::read_to_string, sync::Arc};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -8,79 +8,92 @@ pub struct SubmissionError;
 
 pub struct Scraper {
     _browser: Browser,
-    tab: Arc<Tab>,
+    tab: std::sync::Arc<Tab>,
 }
 
 impl Scraper {
     pub fn new() -> Scraper {
         let browser = Browser::new(
             LaunchOptions::default_builder()
-                .headless(false)
+                // .headless(false)
                 .build()
                 .expect("Could not find chrome-executable"),
         )
         .unwrap();
         let tab = browser.wait_for_initial_tab().unwrap();
-        Scraper {
-            _browser: browser,
+
+        let mut scraper = Scraper {
             tab,
-        }
+            _browser: browser,
+        };
+        scraper.login();
+
+        scraper
     }
 
-    pub fn login(&mut self) {
+    fn login(&mut self) {
         let tab = &self.tab;
-        tab.navigate_to("https://codeforces.com/enter").unwrap();
-        tab.wait_until_navigated().unwrap();
 
-        // Type User
-        tab.wait_for_element_with_custom_timeout("input#handleOrEmail", Duration::from_secs(60))
-            .unwrap();
-        tab.wait_for_element("input#handleOrEmail")
+        loop {
+            tab.navigate_to("https://codeforces.com/enter").unwrap();
+
+            // Type User
+            tab.wait_for_element_with_custom_timeout(
+                "input#handleOrEmail",
+                Duration::from_secs(300),
+            )
             .unwrap()
             .click()
             .unwrap();
-        tab.type_str(env::var("CF_USER").unwrap().as_str()).unwrap();
+            tab.type_str(env::var("CF_USER").unwrap().as_str()).unwrap();
 
-        // Type Password
-        tab.wait_for_element("input#password")
-            .unwrap()
-            .click()
-            .unwrap();
-        tab.type_str(env::var("CF_PASSWORD").unwrap().as_str())
-            .unwrap()
-            .press_key("Enter")
-            .unwrap();
+            // Type Password
+            tab.wait_for_element("input#password")
+                .unwrap()
+                .click()
+                .unwrap();
+            tab.type_str(env::var("CF_PASSWORD").unwrap().as_str())
+                .unwrap()
+                .press_key("Enter")
+                .unwrap();
 
-        // Wait for page to load
-        std::thread::sleep(Duration::from_secs(2));
+            let logged_in = tab
+                .wait_for_element_with_custom_timeout(
+                    r#"a[href$="/logout"]"#,
+                    Duration::from_secs(20),
+                )
+                .is_ok();
+
+            if logged_in {
+                break;
+            }
+        }
     }
 
-    fn set_problem_uuid(path: &str, uuid: &str) {
-        let uuid_line = format!("// UUID: {}", uuid);
-        let file = read_to_string(path).unwrap();
-        let mut file = file.split("\n").collect::<Vec<_>>();
+    fn save_temporary_file(file: &str, uuid: &str) -> PathBuf {
+        let path = std::env::current_dir()
+            .unwrap()
+            .join(format!("tmp_{}.cpp", uuid));
+        write(&path, file).unwrap();
 
-        if file.last().unwrap().contains("UUID") {
-            file.pop();
-        }
-
-        file.push(uuid_line.as_str());
-        let file = file.join("\n");
-
-        write(path, file).unwrap();
+        path
     }
 
     pub fn submit(&mut self, url: &str, input_file: &str) -> Result<(), SubmissionError> {
         let uuid = Uuid::new_v4().to_string();
-        Self::set_problem_uuid(input_file, uuid.as_str());
+        let input_file = format!("{}\n// UUID: {}", input_file, uuid);
+        let path = Self::save_temporary_file(input_file.as_str(), uuid.as_str());
 
         let tab = &self.tab;
         tab.navigate_to(url).unwrap();
 
-        tab.wait_for_element_with_custom_timeout(r#"[name="sourceFile"]"#, Duration::from_secs(60))
-            .unwrap()
-            .set_input_files(&[input_file])
-            .unwrap();
+        tab.wait_for_element_with_custom_timeout(
+            r#"[name="sourceFile"]"#,
+            Duration::from_secs(300),
+        )
+        .unwrap()
+        .set_input_files(&[path.to_str().unwrap()])
+        .unwrap();
 
         tab.wait_for_element(r#".submit[value="Submit"]"#)
             .unwrap()
@@ -113,7 +126,7 @@ impl Scraper {
             std::thread::sleep(Duration::from_secs(1));
 
             let popup = tab
-                .wait_for_element_with_custom_timeout("div.popup", Duration::from_secs(60))
+                .wait_for_element_with_custom_timeout("div.popup", Duration::from_secs(300))
                 .unwrap();
             let is_current_submission = popup.get_inner_text().unwrap().contains(uuid.as_str());
 
@@ -132,6 +145,8 @@ impl Scraper {
             Some(submission) => submission,
         };
 
+        std::fs::remove_file(path).unwrap();
+
         // Waits for result
         loop {
             let status = tab
@@ -149,8 +164,58 @@ impl Scraper {
                     Err(_) => return Err(SubmissionError),
                 }
             }
-            println!("Waiting for judge...");
             std::thread::sleep(Duration::from_secs(1));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use super::*;
+
+    #[test]
+    fn test_multiple_submissions() {
+        let problem_540_a = std::fs::read_to_string(
+            r"C:\Users\mateu\Desktop\icpc-notebook\icpc-reference-tester\test\540A.cpp",
+        )
+        .unwrap();
+        let problem_540_a_wa = std::fs::read_to_string(
+            r"C:\Users\mateu\Desktop\icpc-notebook\icpc-reference-tester\test\540A-WA.cpp",
+        )
+        .unwrap();
+
+        let children = (0..10)
+            .map(|i| {
+                let problem = match i % 2 {
+                    0 => problem_540_a.clone(),
+                    1 => problem_540_a_wa.clone(),
+                    _ => panic!(),
+                };
+
+                thread::spawn(move || {
+                    let mut scraper = Scraper::new();
+
+                    let result = scraper.submit(
+                        "https://codeforces.com/contest/1131/problem/A",
+                        problem.as_str(),
+                    );
+
+                    if result.is_ok() as u32 == i % 2 {
+                        panic!("Wrong Veredict");
+                    }
+
+                    match result {
+                        Ok(()) => println!("Problem {}: ACCEPTED", i),
+                        Err(_) => println!("Problem {}: WRONG ANSWER", i),
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for child in children {
+            child.join().unwrap();
         }
     }
 }

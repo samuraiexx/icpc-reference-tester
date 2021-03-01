@@ -10,4 +10,5 @@ edition = "2018"
 headless_chrome = { git = "https://github.com/atroche/rust-headless-chrome" }
 failure = "0.1.8"
 uuid = { version = "0.8", features = ["v4"] }
+rand = "0.8.3"
 
