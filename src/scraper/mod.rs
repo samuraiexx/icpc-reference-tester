@@ -15,7 +15,7 @@ impl Scraper {
     pub fn new() -> Scraper {
         let browser = Browser::new(
             LaunchOptions::default_builder()
-                // .headless(false)
+                .headless(false) // Uncomment to test
                 .build()
                 .expect("Could not find chrome-executable"),
         )
@@ -31,42 +31,41 @@ impl Scraper {
         scraper
     }
 
-    fn login(&mut self) {
+    fn try_login(&mut self) -> Result<(), failure::Error> {
         let tab = &self.tab;
 
+        tab.navigate_to("https://codeforces.com/enter")?;
+
+        // Type User
+        tab.wait_for_element_with_custom_timeout("input#handleOrEmail", Duration::from_secs(300))?
+            .click()?;
+        tab.type_str(env::var("CF_USER")?.as_str())?;
+
+        // Type Password
+        tab.wait_for_element("input#password")?.click()?;
+        tab.type_str(env::var("CF_PASSWORD").unwrap().as_str())?
+            .press_key("Enter")?;
+
+        tab.wait_for_element_with_custom_timeout(r#"a[href$="/logout"]"#, Duration::from_secs(20))?;
+
+        Ok(())
+    }
+
+    fn login(&mut self) {
+        let max_wait = 65.0;
+        let mut wait_time = 2.0;
+
         loop {
-            tab.navigate_to("https://codeforces.com/enter").unwrap();
-
-            // Type User
-            tab.wait_for_element_with_custom_timeout(
-                "input#handleOrEmail",
-                Duration::from_secs(300),
-            )
-            .unwrap()
-            .click()
-            .unwrap();
-            tab.type_str(env::var("CF_USER").unwrap().as_str()).unwrap();
-
-            // Type Password
-            tab.wait_for_element("input#password")
-                .unwrap()
-                .click()
-                .unwrap();
-            tab.type_str(env::var("CF_PASSWORD").unwrap().as_str())
-                .unwrap()
-                .press_key("Enter")
-                .unwrap();
-
-            let logged_in = tab
-                .wait_for_element_with_custom_timeout(
-                    r#"a[href$="/logout"]"#,
-                    Duration::from_secs(20),
-                )
-                .is_ok();
-
-            if logged_in {
+            if self.try_login().is_ok() {
                 break;
             }
+
+            if wait_time > max_wait {
+                panic!("Exponential backoff max wait time exceded");
+            }
+
+            std::thread::sleep(Duration::from_secs_f32(wait_time * rand::random::<f32>()));
+            wait_time = wait_time * 2.0;
         }
     }
 
@@ -80,32 +79,61 @@ impl Scraper {
     }
 
     pub fn submit(&mut self, url: &str, input_file: &str) -> Result<(), SubmissionError> {
-        let uuid = Uuid::new_v4().to_string();
-        let input_file = format!("{}\n// UUID: {}", input_file, uuid);
-        let path = Self::save_temporary_file(input_file.as_str(), uuid.as_str());
+        let submission;
 
+        let max_wait = 1000.0;
+        let mut wait_time = 3.0;
+
+        loop {
+            let uuid = Uuid::new_v4().to_string();
+            let input_file = format!("{}\n// UUID: {}", input_file, uuid);
+            let path = Self::save_temporary_file(input_file.as_str(), uuid.as_str());
+
+            let submission_try = self.try_submit(url, uuid.as_str(), &path);
+            std::fs::remove_file(path).unwrap();
+
+            match submission_try {
+                Ok(submission_try) => {
+                    submission = submission_try;
+                    break;
+                }
+                Err(err) => println!("{:?}", err),
+            };
+
+            if wait_time > max_wait {
+                panic!("Exponential backoff max wait time exceded");
+            }
+
+            std::thread::sleep(Duration::from_secs_f32(wait_time * rand::random::<f32>()));
+            wait_time = wait_time * 10.0;
+        }
+
+        submission
+    }
+
+    fn try_submit(
+        &mut self,
+        url: &str,
+        uuid: &str,
+        path: &PathBuf,
+    ) -> Result<Result<(), SubmissionError>, failure::Error> {
         let tab = &self.tab;
-        tab.navigate_to(url).unwrap();
+        tab.navigate_to(url)?;
 
         tab.wait_for_element_with_custom_timeout(
             r#"[name="sourceFile"]"#,
             Duration::from_secs(300),
-        )
-        .unwrap()
-        .set_input_files(&[path.to_str().unwrap()])
-        .unwrap();
+        )?
+        .set_input_files(&[path.to_str().unwrap()])?;
 
-        tab.wait_for_element(r#".submit[value="Submit"]"#)
-            .unwrap()
-            .click()
-            .unwrap();
+        tab.wait_for_element(r#".submit[value="Submit"]"#)?
+            .click()?;
 
-        tab.wait_until_navigated().unwrap();
+        tab.wait_until_navigated()?;
 
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(2));
         let submissions = tab
-            .wait_for_elements("[data-submission-id]")
-            .unwrap()
+            .wait_for_elements("[data-submission-id]")?
             .into_iter()
             .map(|element| {
                 let attributes = element.get_attributes().unwrap().unwrap();
@@ -116,22 +144,18 @@ impl Scraper {
         let mut current_submission = None;
 
         for submission in submissions {
-            tab.find_element(format!(r#"tr[data-submission-id="{}"]"#, submission).as_str())
-                .unwrap()
-                .find_element(".id-cell > a")
-                .unwrap()
-                .click()
-                .unwrap();
-            tab.wait_until_navigated().unwrap();
+            tab.find_element(format!(r#"tr[data-submission-id="{}"]"#, submission).as_str())?
+                .find_element(".id-cell > a")?
+                .click()?;
+            tab.wait_until_navigated()?;
             std::thread::sleep(Duration::from_secs(1));
 
-            let popup = tab
-                .wait_for_element_with_custom_timeout("div.popup", Duration::from_secs(300))
-                .unwrap();
-            let is_current_submission = popup.get_inner_text().unwrap().contains(uuid.as_str());
+            let popup =
+                tab.wait_for_element_with_custom_timeout("div.popup", Duration::from_secs(300))?;
+            let is_current_submission = popup.get_inner_text()?.contains(uuid);
 
-            popup.find_element(".close").unwrap().click().unwrap();
-            tab.wait_until_navigated().unwrap();
+            popup.find_element(".close")?.click()?;
+            tab.wait_until_navigated()?;
             std::thread::sleep(Duration::from_secs(1));
 
             if is_current_submission {
@@ -145,23 +169,19 @@ impl Scraper {
             Some(submission) => submission,
         };
 
-        std::fs::remove_file(path).unwrap();
-
         // Waits for result
         loop {
-            let status = tab
-                .find_element(
-                    format!(r#"[submissionid="{}"][waiting]"#, current_submission).as_str(),
-                )
-                .unwrap();
+            let status = tab.find_element(
+                format!(r#"[submissionid="{}"][waiting]"#, current_submission).as_str(),
+            )?;
 
             let attributes = status.get_attributes().unwrap().unwrap();
             let waiting = attributes.get("waiting").unwrap();
 
             if waiting == "false" {
                 match status.find_element(".verdict-accepted") {
-                    Ok(_) => return Ok(()),
-                    Err(_) => return Err(SubmissionError),
+                    Ok(_) => return Ok(Ok(())),
+                    Err(_) => return Ok(Err(SubmissionError)),
                 }
             }
             std::thread::sleep(Duration::from_secs(1));
