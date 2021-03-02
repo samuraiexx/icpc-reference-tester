@@ -39,7 +39,7 @@ impl Scraper {
         // Type User
         tab.wait_for_element_with_custom_timeout("input#handleOrEmail", Duration::from_secs(300))?
             .click()?;
-        tab.type_str(env::var("CF_USER")?.as_str())?;
+        tab.type_str(env::var("CF_USER").unwrap().as_str())?;
 
         // Type Password
         tab.wait_for_element("input#password")?.click()?;
@@ -171,8 +171,9 @@ impl Scraper {
 
         // Waits for result
         loop {
-            let status = tab.find_element(
+            let status = tab.wait_for_element_with_custom_timeout(
                 format!(r#"[submissionid="{}"][waiting]"#, current_submission).as_str(),
+                Duration::from_secs(20),
             )?;
 
             let attributes = status.get_attributes().unwrap().unwrap();
@@ -184,7 +185,8 @@ impl Scraper {
                     Err(_) => return Ok(Err(SubmissionError)),
                 }
             }
-            std::thread::sleep(Duration::from_secs(1));
+
+            tab.reload(false, None)?;
         }
     }
 }
