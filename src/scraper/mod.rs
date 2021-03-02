@@ -70,9 +70,13 @@ impl Scraper {
     }
 
     fn save_temporary_file(file: &str, uuid: &str) -> PathBuf {
+        if std::fs::read_dir("tmp").is_err() {
+            std::fs::create_dir("tmp").unwrap();
+        }
+
         let path = std::env::current_dir()
             .unwrap()
-            .join(format!("tmp_{}.cpp", uuid));
+            .join(format!("tmp/{}.cpp", uuid));
         write(&path, file).unwrap();
 
         path
