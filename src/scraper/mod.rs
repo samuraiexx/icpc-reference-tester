@@ -197,14 +197,8 @@ mod tests {
 
     #[test]
     fn test_multiple_submissions() {
-        let problem_540_a = std::fs::read_to_string(
-            r"C:\Users\mateu\Desktop\icpc-notebook\icpc-reference-tester\test\540A.cpp",
-        )
-        .unwrap();
-        let problem_540_a_wa = std::fs::read_to_string(
-            r"C:\Users\mateu\Desktop\icpc-notebook\icpc-reference-tester\test\540A-WA.cpp",
-        )
-        .unwrap();
+        let problem_540_a = std::fs::read_to_string(r".\test\540A.cpp").unwrap();
+        let problem_540_a_wa = std::fs::read_to_string(r".\test\540A-WA.cpp").unwrap();
 
         let children = (0..10)
             .map(|i| {
