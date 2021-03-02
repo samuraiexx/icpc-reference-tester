@@ -200,7 +200,7 @@ mod tests {
         let problem_540_a = std::fs::read_to_string(r".\test\540A.cpp").unwrap();
         let problem_540_a_wa = std::fs::read_to_string(r".\test\540A-WA.cpp").unwrap();
 
-        let children = (0..10)
+        let children = (0..3)
             .map(|i| {
                 let problem = match i % 2 {
                     0 => problem_540_a.clone(),
