@@ -106,7 +106,7 @@ async fn process_file(path: PathBuf) -> Verdict {
     }
 
     // Check if it's a test file
-    if !file_name.ends_with(".test.cpp") {
+    if !file_name.ends_with(".cpp") {
         println!("{} {}", file_name, Verdict::ParsingError(ParsingError::WrongExtension));
         return Verdict::ParsingError(ParsingError::WrongExtension);
     }
@@ -120,8 +120,10 @@ async fn process_file(path: PathBuf) -> Verdict {
         }
     };
 
-    let mut scraper = Scraper::new();
-    let result = scraper.submit(problem_url.as_str(), processed_file_content.as_str());
+    let result = tokio::task::spawn_blocking(move || {
+        let mut scraper = Scraper::new();
+        scraper.submit(problem_url.as_str(), processed_file_content.as_str())
+    }).await.unwrap();
 
     println!("{} {}", file_name, result);
     result

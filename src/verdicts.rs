@@ -43,7 +43,7 @@ impl std::fmt::Display for ParsingError {
             ParsingError::NoUrl => write!(f, "no problem_url tag"),
             ParsingError::MultipleUrls => write!(f, "multiple problem_url tags"),
             ParsingError::IncludeNotFound => write!(f, "include file not found"),
-            ParsingError::WrongExtension => write!(f, "wrong test file extension"),
+            ParsingError::WrongExtension => write!(f, "wrong test file extension (not cpp)"),
         }
     }
 }

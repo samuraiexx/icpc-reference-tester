@@ -16,5 +16,5 @@ async fn main() -> Result<(), ()> {
     }
 
     let test_ok = processor::find_and_process_files(Path::new(&args[1])).await;
-    if test_ok { Err(()) } else { Ok(()) }
+    if test_ok { Ok(()) } else { Err(()) }
 }
