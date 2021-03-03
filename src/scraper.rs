@@ -100,7 +100,7 @@ impl Scraper {
                     submission = submission_try;
                     break;
                 }
-                Err(err) => println!("{:?}", err),
+                Err(_) => {},
             };
 
             if wait_time > max_wait {

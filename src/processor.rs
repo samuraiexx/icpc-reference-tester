@@ -101,33 +101,29 @@ async fn process_file(path: PathBuf) -> Verdict {
 
     // Check if it's an ignored file
     if file_name.starts_with("_") {
-        println!("{} ... IGNORED", file_name);
+        println!("{} {}", file_name, Verdict::Ignored);
         return Verdict::Ignored;
     }
 
     // Check if it's a test file
     if !file_name.ends_with(".test.cpp") {
-        println!("{} ... FAILED", file_name);
+        println!("{} {}", file_name, Verdict::ParsingError(ParsingError::WrongExtension));
         return Verdict::ParsingError(ParsingError::WrongExtension);
     }
 
     let (problem_url, processed_file_content) = match process_file_content(&path) {
         Ok(returns) => returns,
         Err(err) => {
-            println!("{} ... FAILED", file_name);
-            return Verdict::ParsingError(err);
+            let verdict = Verdict::ParsingError(err);
+            println!("{} {}", file_name, verdict);
+            return verdict;
         }
     };
 
     let mut scraper = Scraper::new();
     let result = scraper.submit(problem_url.as_str(), processed_file_content.as_str());
-    match result {
-        Verdict::Accepted => println!("{} ... OK", file_name),
-        Verdict::NotAccepted => println!("{} ... FAILED", file_name),
-        Verdict::Timeout => println!("{} ... FAILED", file_name),
-        _ => panic!("Unexpected Verdict"),
-    }
 
+    println!("{} {}", file_name, result);
     result
 }
 
