@@ -94,15 +94,7 @@ async fn process_file(path: &Path) -> Verdict {
     };
 
     let mut scraper = Scraper::new();
-    match scraper.submit(problem_url.as_str(), processed_file_content.as_str()) {
-        Err(_) => {
-            Verdict::NotAccepted
-        },
-        _ => {
-            println!("{} ... OK", path.to_str().unwrap());
-            Verdict::Accepted
-        },
-    }
+    scraper.submit(problem_url.as_str(), processed_file_content.as_str())
 }
 
 // Process file

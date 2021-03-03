@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use std::{env, fs::write, time::Duration};
 use uuid::Uuid;
 
-#[derive(Debug)]
-pub struct SubmissionError;
+use crate::verdicts::Verdict;
 
 pub struct Scraper {
     _browser: Browser,
@@ -15,7 +14,7 @@ impl Scraper {
     pub fn new() -> Scraper {
         let browser = Browser::new(
             LaunchOptions::default_builder()
-                .headless(false) // Uncomment to test
+                // .headless(false) // Uncomment to test
                 .build()
                 .expect("Could not find chrome-executable"),
         )
@@ -82,7 +81,7 @@ impl Scraper {
         path
     }
 
-    pub fn submit(&mut self, url: &str, input_file: &str) -> Result<(), SubmissionError> {
+    pub fn submit(&mut self, url: &str, input_file: &str) -> Verdict {
         let submission;
 
         let max_wait = 1000.0;
@@ -105,7 +104,7 @@ impl Scraper {
             };
 
             if wait_time > max_wait {
-                panic!("Exponential backoff max wait time exceded");
+                return Verdict::Timeout;
             }
 
             std::thread::sleep(Duration::from_secs_f32(wait_time * rand::random::<f32>()));
@@ -120,7 +119,7 @@ impl Scraper {
         url: &str,
         uuid: &str,
         path: &PathBuf,
-    ) -> Result<Result<(), SubmissionError>, failure::Error> {
+    ) -> Result<Verdict, failure::Error> {
         let tab = &self.tab;
         tab.navigate_to(url)?;
 
@@ -185,8 +184,8 @@ impl Scraper {
 
             if waiting == "false" {
                 match status.find_element(".verdict-accepted") {
-                    Ok(_) => return Ok(Ok(())),
-                    Err(_) => return Ok(Err(SubmissionError)),
+                    Ok(_) => return Ok(Verdict::Accepted),
+                    Err(_) => return Ok(Verdict::NotAccepted),
                 }
             }
 
@@ -222,13 +221,15 @@ mod tests {
                         problem.as_str(),
                     );
 
-                    if result.is_ok() as u32 == i % 2 {
+                    if result.accepted() as u32 == i % 2 {
                         panic!("Wrong Veredict");
                     }
 
                     match result {
-                        Ok(()) => println!("Problem {}: ACCEPTED", i),
-                        Err(_) => println!("Problem {}: WRONG ANSWER", i),
+                        Verdict::Accepted => println!("Problem {}: ACCEPTED", i),
+                        Verdict::NotAccepted => println!("Problem {}: WRONG ANSWER", i),
+                        Verdict::Timeout => println!("Problem {}: Timeout", i),
+                        _ => panic!("Unexpected Verdict"),
                     }
                 })
             })
