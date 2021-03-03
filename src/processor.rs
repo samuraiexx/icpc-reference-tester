@@ -1,6 +1,5 @@
 use std::{
     fs,
-    io,
     path::{Path, PathBuf},
 };
 
@@ -8,39 +7,63 @@ use crate::scraper::Scraper;
 use crate::verdicts::*;
 
 
-    /*
-        // ParsingError::MultipleUrls
-        io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("test file has multiple problem urls: {}", path.to_str().unwrap())
-        )
-
-        // ParsingError::NoUrl
-        io::Error::new(
+/*
+    // ParsingError::MultipleUrls
+    io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("test file has no problem url: {}", path.to_str().unwrap())
-        )
+            format!("test file has multiple problem urls: {}", path.to_str().unwrap())
+    )
 
-        // ParsingError::WrongExtension
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("file doesn't have the test file extension: {}", path.to_str().unwrap())
-        ));
-    */
+    // ParsingError::NoUrl
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("test file has no problem url: {}", path.to_str().unwrap())
+    )
 
-pub async fn find_and_process_files(dir: &Path) -> io::Result<()> {
+    // ParsingError::WrongExtension
+    return Err(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("file doesn't have the test file extension: {}", path.to_str().unwrap())
+    ));
+*/
+
+pub async fn find_and_process_files(dir: &Path) -> bool {
     let file_paths = find_files(dir);
 
-    /*
+    println!("running {} tests\n", file_paths.len());
+
     let mut process_futures = Vec::new();
-    for path in file_paths {
-        process_futures.push(process_file(&path));
+    for path in file_paths.into_iter() {
+        process_futures.push(process_file(path));
     }
 
-    //let process_results = tokio::join!(process_futures.into());
-    */
+    let verdicts = futures::future::join_all(process_futures).await;
 
-    Ok(())
+    let mut passed = 0;
+    let mut failed = 0;
+    let mut ignored = 0;
+
+    for verdict in verdicts {
+        match verdict {
+            Verdict::Accepted    => passed += 1,
+            Verdict::NotAccepted => failed += 1,
+            Verdict::Ignored     => ignored += 1,
+            _ => {
+                // @TODO error
+            }
+        }
+    }
+
+    let test_ok = failed == 0;
+    let test_result_str = if test_ok { "ok" } else { "failed" };
+
+    println!(
+        "\ntest result: {}. {} passed; {} failed; {} ignored",
+        test_result_str,
+        passed, failed, ignored
+    );
+
+    test_ok
 }
 
 // @XXX This was moved outside find_and_process_files because recursived async functions require
@@ -71,30 +94,41 @@ fn find_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-async fn process_file(path: &Path) -> Verdict {
+async fn process_file(path: PathBuf) -> Verdict {
     // This shouldn't fail. We check if it's a file before calling this function and OsStr to_str
     // shouldn't fail (not sure when it fails. Maybe some weird unicode? It's not documented)
     let file_name = path.file_name().unwrap().to_str().unwrap();
 
     // Check if it's an ignored file
     if file_name.starts_with("_") {
-        println!("{} ... IGNORED", path.to_str().unwrap());
+        println!("{} ... IGNORED", file_name);
         return Verdict::Ignored;
     }
 
     // Check if it's a test file
     if !file_name.ends_with(".test.cpp") {
-        println!("{} ... FAIL", path.to_str().unwrap());
+        println!("{} ... FAILED", file_name);
         return Verdict::ParsingError(ParsingError::WrongExtension);
     }
 
-    let (problem_url, processed_file_content) = match process_file_content(path) {
+    let (problem_url, processed_file_content) = match process_file_content(&path) {
         Ok(returns) => returns,
-        Err(err) => return Verdict::ParsingError(err),
+        Err(err) => {
+            println!("{} ... FAILED", file_name);
+            return Verdict::ParsingError(err);
+        }
     };
 
     let mut scraper = Scraper::new();
-    scraper.submit(problem_url.as_str(), processed_file_content.as_str())
+    let result = scraper.submit(problem_url.as_str(), processed_file_content.as_str());
+    match result {
+        Verdict::Accepted => println!("{} ... OK", file_name),
+        Verdict::NotAccepted => println!("{} ... FAILED", file_name),
+        Verdict::Timeout => println!("{} ... FAILED", file_name),
+        _ => panic!("Unexpected Verdict"),
+    }
+
+    result
 }
 
 // Process file
@@ -170,7 +204,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_process_template_file_content() -> io::Result<()> {
+    fn test_process_template_file_content() -> Result<(), ParsingError> {
         let (problem_url, _processed_file_content) = process_file_content(
             Path::new("test/test_folder/template.test.cpp")
         )?;
@@ -179,16 +213,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_template_file() -> io::Result<()> {
-        process_file(
-            Path::new("test/test_folder/template.test.cpp")
-        ).await?;
-        Ok(())
+    async fn test_process_template_file() {
+        let verdict = process_file(
+            Path::new("test/test_folder/template.test.cpp").to_path_buf()
+        ).await;
+
+        assert_eq!(verdict, Verdict::NotAccepted);
     }
 
     #[tokio::test]
-    async fn test_find_and_process_files() -> io::Result<()> {
-        find_and_process_files(Path::new("test/test_folder")).await?;
-        Ok(())
+    async fn test_find_and_process_files() {
+        let test_result = find_and_process_files(Path::new("test/test_folder")).await;
+        assert_eq!(test_result.passed, 0);
+        assert_eq!(test_result.failed, 1);
+        assert_eq!(test_result.ignored, 1);
     }
 }

@@ -1,3 +1,4 @@
+#[derive(PartialEq, Eq, Debug)]
 pub enum Verdict {
     Accepted,
     NotAccepted,
@@ -6,6 +7,7 @@ pub enum Verdict {
     ParsingError(ParsingError),
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub enum ParsingError {
     NoUrl,
     MultipleUrls,
