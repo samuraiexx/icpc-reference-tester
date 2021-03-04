@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::scraper::Scraper;
-use crate::verdicts::*;
+use crate::test_result::*;
 
 
 /*
@@ -30,24 +30,24 @@ use crate::verdicts::*;
 pub async fn find_and_process_files(dir: &Path) -> bool {
     let file_paths = find_files(dir);
 
-    println!("running {} tests\n", file_paths.len());
+    println!("found {} tests at {}\n", file_paths.len(), dir.canonicalize().unwrap().display());
 
     let mut process_futures = Vec::new();
     for path in file_paths.into_iter() {
         process_futures.push(process_file(path));
     }
 
-    let verdicts = futures::future::join_all(process_futures).await;
+    let test_results = futures::future::join_all(process_futures).await;
 
     let mut passed = 0;
     let mut failed = 0;
     let mut ignored = 0;
 
-    for verdict in verdicts {
-        match verdict {
-            Verdict::Accepted => passed  += 1,
-            Verdict::Ignored  => ignored += 1,
-            _                 => failed  += 1,
+    for test_result in test_results {
+        match test_result {
+            TestResult::Accepted => passed  += 1,
+            TestResult::Ignored  => ignored += 1,
+            _                    => failed  += 1,
         }
     }
 
@@ -69,13 +69,14 @@ pub async fn find_and_process_files(dir: &Path) -> bool {
 fn find_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
-    // @TODO match result
+    // @TODO fail if path is invalid
     for entry in fs::read_dir(dir).unwrap() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if path.is_dir() {
                 // @TODO don't fail fast
-                find_files(&path);
+                let subfolder = find_files(&path);
+                files.extend(subfolder);
             } else if path.is_file() {
                 files.push(path);
             } else {
@@ -91,29 +92,29 @@ fn find_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-async fn process_file(path: PathBuf) -> Verdict {
+async fn process_file(path: PathBuf) -> TestResult {
     // This shouldn't fail. We check if it's a file before calling this function and OsStr to_str
     // shouldn't fail (not sure when it fails. Maybe some weird unicode? It's not documented)
     let file_name = path.file_name().unwrap().to_str().unwrap();
 
     // Check if it's an ignored file
     if file_name.starts_with("_") {
-        println!("{} {}", file_name, Verdict::Ignored);
-        return Verdict::Ignored;
+        println!("{} ... {}", path.display(), TestResult::Ignored);
+        return TestResult::Ignored;
     }
 
     // Check if it's a test file
     if !file_name.ends_with(".cpp") {
-        println!("{} {}", file_name, Verdict::ParsingError(ParsingError::WrongExtension));
-        return Verdict::ParsingError(ParsingError::WrongExtension);
+        println!("{} ... {}", path.display(), TestResult::ParsingError(ParsingError::WrongExtension));
+        return TestResult::ParsingError(ParsingError::WrongExtension);
     }
 
     let (problem_url, processed_file_content) = match process_file_content(&path) {
         Ok(returns) => returns,
         Err(err) => {
-            let verdict = Verdict::ParsingError(err);
-            println!("{} {}", file_name, verdict);
-            return verdict;
+            let test_result = TestResult::ParsingError(err);
+            println!("{} ... {}", path.display(), test_result);
+            return test_result;
         }
     };
 
@@ -122,7 +123,7 @@ async fn process_file(path: PathBuf) -> Verdict {
         scraper.submit(problem_url.as_str(), processed_file_content.as_str())
     }).await.unwrap();
 
-    println!("{} {}", file_name, result);
+    println!("{} ... {}", path.display(), result);
     result
 }
 
@@ -209,11 +210,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_template_file() {
-        let verdict = process_file(
+        let test_result = process_file(
             Path::new("test/test_folder/template.test.cpp").to_path_buf()
         ).await;
 
-        assert_eq!(verdict, Verdict::NotAccepted);
+        assert_eq!(test_result, TestResult::NotAccepted);
     }
 
     #[tokio::test]
@@ -223,4 +224,12 @@ mod tests {
         assert_eq!(test_result.failed, 1);
         assert_eq!(test_result.ignored, 1);
     }
+
+    /*
+    #[test]
+    fn test_find_files() {
+        let files = find_files(Path::new("test/test_folder"));
+        assert_eq!(
+    */
+
 }

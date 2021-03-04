@@ -3,7 +3,7 @@ use tokio;
 
 mod processor;
 mod scraper;
-mod verdicts;
+mod test_result;
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {

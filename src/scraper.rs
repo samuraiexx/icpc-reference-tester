@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::{env, fs::write, time::Duration};
 use uuid::Uuid;
 
-use crate::verdicts::Verdict;
+use crate::test_result::{TestResult, SubmissionError};
 
 pub struct Scraper {
     _browser: Browser,
@@ -81,7 +81,7 @@ impl Scraper {
         path
     }
 
-    pub fn submit(&mut self, url: &str, input_file: &str) -> Verdict {
+    pub fn submit(&mut self, url: &str, input_file: &str) -> TestResult {
         let submission;
 
         let max_wait = 1000.0;
@@ -104,7 +104,7 @@ impl Scraper {
             };
 
             if wait_time > max_wait {
-                return Verdict::Timeout;
+                return TestResult::SubmissionError(SubmissionError::Timeout);
             }
 
             std::thread::sleep(Duration::from_secs_f32(wait_time * rand::random::<f32>()));
@@ -119,7 +119,7 @@ impl Scraper {
         url: &str,
         uuid: &str,
         path: &PathBuf,
-    ) -> Result<Verdict, failure::Error> {
+    ) -> Result<TestResult, failure::Error> {
         let tab = &self.tab;
         tab.navigate_to(url)?;
 
@@ -184,8 +184,8 @@ impl Scraper {
 
             if waiting == "false" {
                 match status.find_element(".verdict-accepted") {
-                    Ok(_) => return Ok(Verdict::Accepted),
-                    Err(_) => return Ok(Verdict::NotAccepted),
+                    Ok(_) => return Ok(TestResult::Accepted),
+                    Err(_) => return Ok(TestResult::NotAccepted),
                 }
             }
 
@@ -221,15 +221,16 @@ mod tests {
                         problem.as_str(),
                     );
 
-                    if result.accepted() as u32 == i % 2 {
+                    let result_accepted = result == TestResult::Accepted;
+                    if result_accepted as u32 == i % 2 {
                         panic!("Wrong Veredict");
                     }
 
                     match result {
-                        Verdict::Accepted => println!("Problem {}: ACCEPTED", i),
-                        Verdict::NotAccepted => println!("Problem {}: WRONG ANSWER", i),
-                        Verdict::Timeout => println!("Problem {}: Timeout", i),
-                        _ => panic!("Unexpected Verdict"),
+                        TestResult::Accepted => println!("Problem {}: ACCEPTED", i),
+                        TestResult::NotAccepted => println!("Problem {}: WRONG ANSWER", i),
+                        TestResult::SubmissionError(SubmissionError::Timeout) => println!("Problem {}: Timeout", i),
+                        _ => panic!("Unexpected TestResult"),
                     }
                 })
             })
