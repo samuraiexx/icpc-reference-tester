@@ -155,13 +155,13 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
                                 return Some(Err(ParsingError::MultipleUrls));
                             }
 
-                            if let Some(url) = iter.find(|s| !s.is_empty()) {
+                            if let Some(url) = iter.next() {
                                 problem_url = Some(url.to_string());
                             }
                         },
 
                         "@include:" => {
-                            if let Some(inc) = iter.find(|s| !s.is_empty()) {
+                            if let Some(inc) = iter.next() {
                                 // @Future maybe accept comma separated includes
                                 //inc.trim_end_matches(",");
 
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_process_template_file_content() -> Result<(), ParsingError> {
         let (problem_url, _processed_file_content) = process_file_content(
-            Path::new("test/test_folder/template.test.cpp")
+            Path::new("test/test_folder/_template.test.cpp")
         )?;
         assert_eq!(problem_url, "https://codeforces.com/contest/1083/problem/E");
         Ok(())
@@ -211,7 +211,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_template_file() {
         let test_result = process_file(
-            Path::new("test/test_folder/template.test.cpp").to_path_buf()
+            Path::new("test/test_folder/_template.test.cpp").to_path_buf()
         ).await;
 
         assert_eq!(test_result, TestResult::NotAccepted);
