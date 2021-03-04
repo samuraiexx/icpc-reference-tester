@@ -138,9 +138,6 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
 
                         "@include:" => {
                             if let Some(inc) = iter.next() {
-                                // @Future maybe accept comma separated includes
-                                //inc.trim_end_matches(",");
-
                                 match fs::read_to_string(inc) {
                                     Err(err) => {
                                         return Some(Err(
