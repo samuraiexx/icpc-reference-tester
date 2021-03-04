@@ -19,6 +19,7 @@ pub enum ParsingError {
     MultipleUrls,
     IncludeError(String, std::io::Error),
     WrongExtension,
+    IoError(std::io::Error),
 }
 
 impl std::fmt::Display for TestResult {
@@ -49,8 +50,9 @@ impl std::fmt::Display for ParsingError {
             ParsingError::MultipleUrls => write!(f, "multiple problem_url tags"),
             ParsingError::WrongExtension => write!(f, "wrong test file extension (not cpp)"),
             ParsingError::IncludeError(inc, err) => {
-                write!(f, "could not include file {} with error: \"{}\"", inc, err)
+                write!(f, "could not include file {}. Error: \"{}\"", inc, err)
             }
+            ParsingError::IoError(err) => write!(f, "could not open test file. Error: \"{}\"", err),
         }
     }
 }
