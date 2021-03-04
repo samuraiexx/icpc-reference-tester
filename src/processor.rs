@@ -45,12 +45,9 @@ pub async fn find_and_process_files(dir: &Path) -> bool {
 
     for verdict in verdicts {
         match verdict {
-            Verdict::Accepted    => passed += 1,
-            Verdict::NotAccepted => failed += 1,
-            Verdict::Ignored     => ignored += 1,
-            _ => {
-                // @TODO error
-            }
+            Verdict::Accepted => passed  += 1,
+            Verdict::Ignored  => ignored += 1,
+            _                 => failed  += 1,
         }
     }
 
