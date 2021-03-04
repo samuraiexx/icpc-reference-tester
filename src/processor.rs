@@ -217,19 +217,12 @@ mod tests {
         assert_eq!(test_result, TestResult::NotAccepted);
     }
 
-    #[tokio::test]
-    async fn test_find_and_process_files() {
-        let test_result = find_and_process_files(Path::new("test/test_folder")).await;
-        assert_eq!(test_result.passed, 0);
-        assert_eq!(test_result.failed, 1);
-        assert_eq!(test_result.ignored, 1);
-    }
-
     /*
+    // @TODO create this test
     #[test]
     fn test_find_files() {
         let files = find_files(Path::new("test/test_folder"));
-        assert_eq!(
+    }
     */
 
 }
