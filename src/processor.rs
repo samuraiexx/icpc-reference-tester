@@ -6,27 +6,6 @@ use std::{
 use crate::scraper::Scraper;
 use crate::test_result::*;
 
-
-/*
-    // ParsingError::MultipleUrls
-    io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("test file has multiple problem urls: {}", path.to_str().unwrap())
-    )
-
-    // ParsingError::NoUrl
-    io::Error::new(
-        io::ErrorKind::InvalidData,
-        format!("test file has no problem url: {}", path.to_str().unwrap())
-    )
-
-    // ParsingError::WrongExtension
-    return Err(io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!("file doesn't have the test file extension: {}", path.to_str().unwrap())
-    ));
-*/
-
 pub async fn find_and_process_files(dir: &Path) -> bool {
     let file_paths = find_files(dir);
 
@@ -69,22 +48,18 @@ pub async fn find_and_process_files(dir: &Path) -> bool {
 fn find_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
-    // @TODO fail if path is invalid
     for entry in fs::read_dir(dir).unwrap() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if path.is_dir() {
-                // @TODO don't fail fast
                 let subfolder = find_files(&path);
                 files.extend(subfolder);
             } else if path.is_file() {
                 files.push(path);
             } else {
-                // @TODO investigate if this can happen
                 panic!("invalid path: {}", path.to_str().unwrap());
             }
         } else {
-            // @TODO investigate when this can happen
             panic!("failed on entry");
         }
     }
@@ -130,13 +105,14 @@ async fn process_file(path: PathBuf) -> TestResult {
 // Process file
 // Finds the C++ comment with "@problem_url: <problem_url>"
 // @XXX ideally we should force it to be in the first line of the file
-// @TODO include dependencies (@include)
 
 // Returns problem_url and processed_file_content
 fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
     // Read file content to memory
-    // @TODO match result
-    let file_content = fs::read_to_string(path).unwrap();
+    let file_content = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(err) => return Err(ParsingError::IoError(err)),
+    };
 
     let mut problem_url = None;
 
@@ -167,8 +143,6 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
 
                                 match fs::read_to_string(inc) {
                                     Err(err) => {
-                                        // @TODO return a better error message
-                                        //       io failure could be many different errors
                                         return Some(Err(
                                             ParsingError::IncludeError(inc.to_string(), err)
                                         ));
