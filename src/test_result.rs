@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum TestResult {
     Accepted,
     NotAccepted,
@@ -7,17 +7,17 @@ pub enum TestResult {
     ParsingError(ParsingError),
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum SubmissionError {
     Timeout,
     JudgeNotSupported,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum ParsingError {
     NoUrl,
     MultipleUrls,
-    IncludeNotFound,
+    IncludeError(String, std::io::Error),
     WrongExtension,
 }
 
@@ -45,10 +45,11 @@ impl std::fmt::Display for SubmissionError {
 impl std::fmt::Display for ParsingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParsingError::NoUrl           => write!(f, "no problem_url tag"),
-            ParsingError::MultipleUrls    => write!(f, "multiple problem_url tags"),
-            ParsingError::IncludeNotFound => write!(f, "include file not found"),
-            ParsingError::WrongExtension  => write!(f, "wrong test file extension (not cpp)"),
+            ParsingError::NoUrl          => write!(f, "no problem_url tag"),
+            ParsingError::MultipleUrls   => write!(f, "multiple problem_url tags"),
+            ParsingError::WrongExtension => write!(f, "wrong test file extension (not cpp)"),
+            ParsingError::IncludeError(inc, err) =>
+                write!(f, "could not include file {} with error: \"{}\"", inc, err),
         }
     }
 }

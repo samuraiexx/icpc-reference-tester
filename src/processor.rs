@@ -166,10 +166,12 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
                                 //inc.trim_end_matches(",");
 
                                 match fs::read_to_string(inc) {
-                                    Err(_) => {
+                                    Err(err) => {
                                         // @TODO return a better error message
                                         //       io failure could be many different errors
-                                        return Some(Err(ParsingError::IncludeNotFound));
+                                        return Some(Err(
+                                            ParsingError::IncludeError(inc.to_string(), err)
+                                        ));
                                     },
                                     Ok(inc_file) => return Some(Ok(inc_file)),
                                 }
