@@ -3,9 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::scraper::Scraper;
+use crate::scraper;
 use crate::test_result::*;
-
 
 /*
     // ParsingError::MultipleUrls
@@ -30,7 +29,11 @@ use crate::test_result::*;
 pub async fn find_and_process_files(dir: &Path) -> bool {
     let file_paths = find_files(dir);
 
-    println!("found {} tests at {}\n", file_paths.len(), dir.canonicalize().unwrap().display());
+    println!(
+        "found {} tests at {}\n",
+        file_paths.len(),
+        dir.canonicalize().unwrap().display()
+    );
 
     let mut process_futures = Vec::new();
     for path in file_paths.into_iter() {
@@ -45,9 +48,9 @@ pub async fn find_and_process_files(dir: &Path) -> bool {
 
     for test_result in test_results {
         match test_result {
-            TestResult::Accepted => passed  += 1,
-            TestResult::Ignored  => ignored += 1,
-            _                    => failed  += 1,
+            TestResult::Accepted => passed += 1,
+            TestResult::Ignored => ignored += 1,
+            _ => failed += 1,
         }
     }
 
@@ -56,8 +59,7 @@ pub async fn find_and_process_files(dir: &Path) -> bool {
 
     println!(
         "\ntest result: {}. {} passed; {} failed; {} ignored",
-        test_result_str,
-        passed, failed, ignored
+        test_result_str, passed, failed, ignored
     );
 
     test_ok
@@ -105,7 +107,11 @@ async fn process_file(path: PathBuf) -> TestResult {
 
     // Check if it's a test file
     if !file_name.ends_with(".cpp") {
-        println!("{} ... {}", path.display(), TestResult::ParsingError(ParsingError::WrongExtension));
+        println!(
+            "{} ... {}",
+            path.display(),
+            TestResult::ParsingError(ParsingError::WrongExtension)
+        );
         return TestResult::ParsingError(ParsingError::WrongExtension);
     }
 
@@ -119,9 +125,10 @@ async fn process_file(path: PathBuf) -> TestResult {
     };
 
     let result = tokio::task::spawn_blocking(move || {
-        let mut scraper = Scraper::new();
-        scraper.submit(problem_url.as_str(), processed_file_content.as_str())
-    }).await.unwrap();
+        scraper::submit(problem_url.as_str(), processed_file_content.as_str())
+    })
+    .await
+    .unwrap();
 
     println!("{} ... {}", path.display(), result);
     result
@@ -146,7 +153,9 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
             let mut iter = line.split_whitespace();
 
             if let Some(s) = iter.next() {
-                if s != "//" { return Some(Ok(line.to_string())); }
+                if s != "//" {
+                    return Some(Ok(line.to_string()));
+                }
 
                 while let Some(s) = iter.next() {
                     match s {
@@ -158,7 +167,7 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
                             if let Some(url) = iter.next() {
                                 problem_url = Some(url.to_string());
                             }
-                        },
+                        }
 
                         "@include:" => {
                             if let Some(inc) = iter.next() {
@@ -169,14 +178,15 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
                                     Err(err) => {
                                         // @TODO return a better error message
                                         //       io failure could be many different errors
-                                        return Some(Err(
-                                            ParsingError::IncludeError(inc.to_string(), err)
-                                        ));
-                                    },
+                                        return Some(Err(ParsingError::IncludeError(
+                                            inc.to_string(),
+                                            err,
+                                        )));
+                                    }
                                     Ok(inc_file) => return Some(Ok(inc_file)),
                                 }
                             }
-                        },
+                        }
 
                         _ => {}
                     }
@@ -195,36 +205,4 @@ fn process_file_content(path: &Path) -> Result<(String, String), ParsingError> {
     }
 
     Ok((problem_url.unwrap(), processed_file_content))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_process_template_file_content() -> Result<(), ParsingError> {
-        let (problem_url, _processed_file_content) = process_file_content(
-            Path::new("test/test_folder/_template.test.cpp")
-        )?;
-        assert_eq!(problem_url, "https://codeforces.com/contest/1083/problem/E");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_process_template_file() {
-        let test_result = process_file(
-            Path::new("test/test_folder/_template.test.cpp").to_path_buf()
-        ).await;
-
-        assert_eq!(test_result, TestResult::NotAccepted);
-    }
-
-    /*
-    // @TODO create this test
-    #[test]
-    fn test_find_files() {
-        let files = find_files(Path::new("test/test_folder"));
-    }
-    */
-
 }

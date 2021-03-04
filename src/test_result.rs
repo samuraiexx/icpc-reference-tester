@@ -24,11 +24,11 @@ pub enum ParsingError {
 impl std::fmt::Display for TestResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TestResult::Accepted             => write!(f, "OK"),
-            TestResult::NotAccepted          => write!(f, "FAILED: wrong verdict"),
-            TestResult::Ignored              => write!(f, "IGNORED"),
+            TestResult::Accepted => write!(f, "OK"),
+            TestResult::NotAccepted => write!(f, "FAILED: wrong verdict"),
+            TestResult::Ignored => write!(f, "IGNORED"),
             TestResult::SubmissionError(err) => write!(f, "FAILED: {}", err),
-            TestResult::ParsingError(err)    => write!(f, "FAILED: {}", err),
+            TestResult::ParsingError(err) => write!(f, "FAILED: {}", err),
         }
     }
 }
@@ -36,7 +36,7 @@ impl std::fmt::Display for TestResult {
 impl std::fmt::Display for SubmissionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SubmissionError::Timeout           => write!(f, "submission timeout"),
+            SubmissionError::Timeout => write!(f, "submission timeout"),
             SubmissionError::JudgeNotSupported => write!(f, "judge not supported"),
         }
     }
@@ -45,11 +45,12 @@ impl std::fmt::Display for SubmissionError {
 impl std::fmt::Display for ParsingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParsingError::NoUrl          => write!(f, "no problem_url tag"),
-            ParsingError::MultipleUrls   => write!(f, "multiple problem_url tags"),
+            ParsingError::NoUrl => write!(f, "no problem_url tag"),
+            ParsingError::MultipleUrls => write!(f, "multiple problem_url tags"),
             ParsingError::WrongExtension => write!(f, "wrong test file extension (not cpp)"),
-            ParsingError::IncludeError(inc, err) =>
-                write!(f, "could not include file {} with error: \"{}\"", inc, err),
+            ParsingError::IncludeError(inc, err) => {
+                write!(f, "could not include file {} with error: \"{}\"", inc, err)
+            }
         }
     }
 }
