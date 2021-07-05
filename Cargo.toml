@@ -7,7 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-headless_chrome = { git = "https://github.com/atroche/rust-headless-chrome" }
+# Last stable version is from 2019. This fork is just to guarantee we this repo won't break again
+# because of updates in the original repo. We should either seek for a stable headless browser crate
+# or wait to update this URL to the next stable version
+headless_chrome = { git = "https://github.com/naumazeredo/rust-headless-chrome" }
+
 failure = "0.1.8"
 uuid = { version = "0.8", features = ["v4"] }
 rand = "0.8.3"
