@@ -44,7 +44,7 @@ pub fn try_submit(
     "#;
 
     tab.find_element("select#lang")?
-        .call_js_fn(javascript_set_cpp_lang, false)?;
+        .call_js_fn(javascript_set_cpp_lang, vec![], false)?;
 
     tab.find_element("#submit")?.click()?;
 
